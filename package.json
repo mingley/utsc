@@ -1,0 +1,19 @@
+{
+  "name": "utsc-compatibility",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pinned TypeScript oracle for the native Rust scanner",
+  "scripts": {
+    "test": "node scripts/compat.mjs",
+    "test:compat": "node scripts/compat.mjs",
+    "generate": "node scripts/generate.mjs",
+    "check:generated": "node scripts/generate.mjs --check",
+    "bench:reference": "node scripts/bench-reference.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

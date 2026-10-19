@@ -1,0 +1,31 @@
+[package]
+name = "utsc"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "A native Rust TypeScript compiler, beginning with a differential-tested scanner"
+license = "Apache-2.0"
+repository = "https://github.com/mingley/utsc"
+publish = false
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[[bench]]
+name = "scanner"
+harness = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+lto = "thin"
+codegen-units = 1
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"

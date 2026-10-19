@@ -1,0 +1,12 @@
+utsc
+
+Token names, keyword mappings, and Unicode identifier tables are derived from
+Microsoft TypeScript 7.0.2 (git 2bd066d87f5bafd315be9f40889d0a60b9e58e0b).
+Copyright (c) Microsoft Corporation. Licensed under the Apache License, Version 2.0.
+Original upstream third-party notices, including the Unicode data license, are
+retained in licenses/TypeScript-NOTICE.txt (line endings/whitespace normalized).
+These data are regenerated into Rust by scripts/generate.mjs. The scanner is
+implemented in Rust with TypeScript's lexical behavior as its reference.
+
+pingdotgg/ts-rust at 780dc512d64f40afebffa6a7028207649fb7ed1c was consulted
+as an architectural reference. No source code from that project is included.

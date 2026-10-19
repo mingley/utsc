@@ -1,0 +1,5 @@
+/target/
+/node_modules/
+*.profraw
+*.profdata
+.DS_Store
