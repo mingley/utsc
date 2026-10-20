@@ -2,7 +2,8 @@
 
 The goal is a fast native Rust implementation of the latest stable TypeScript
 compiler. Read README.md and docs/compatibility.md for the actual implemented
-scope. This repository currently contains a scanner, not a working compiler.
+scope. Read GOAL.md for completion gates. The current front end has a scanner
+and a partial typed expression parser; it is not a working compiler.
 
 - Use this checkout. Cloud tasks are isolated; do not create Git worktrees unless
   the user explicitly requests one.

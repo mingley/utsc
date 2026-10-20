@@ -10,7 +10,8 @@
     "check:generated": "node scripts/generate.mjs --check",
     "bench:reference": "node scripts/bench-reference.mjs",
     "bench:compiler": "node benchmarks/compiler/run.mjs",
-    "test:bench": "node --test benchmarks/compiler/gates.test.mjs benchmarks/compiler/measure.test.mjs"
+    "test:bench": "node --test benchmarks/compiler/gates.test.mjs benchmarks/compiler/measure.test.mjs",
+    "test:parser": "node scripts/parser-compat.mjs"
   },
   "engines": {
     "node": ">=22"

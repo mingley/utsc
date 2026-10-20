@@ -4,11 +4,12 @@ A native Rust implementation of the TypeScript compiler, targeting the latest
 stable release: **TypeScript 7.0.2**. The goal is full compatibility and high
 performance with idiomatic Rust ownership and data structures.
 
-**Status: compiler foundation, not a production-ready compiler.** This first
-milestone implements a context-free scanner, source positions, a JSON CLI, and
-an upstream differential test harness. There is no parser, type checker, module
-resolver, or JavaScript emitter yet. No full-compiler speedup or conformance
-claim is made.
+**Status: compiler foundation, not a production-ready compiler.** The front end
+implements a raw scanner, parser-directed greater-than/template rescans, source
+positions, and a typed parser for a documented expression subset. There is no
+whole-source-file parser, type checker, module resolver, or JavaScript emitter yet.
+No full-compiler speedup or conformance claim is made. See [GOAL.md](GOAL.md) for
+the completion gates.
 
 ## Develop
 
@@ -40,6 +41,7 @@ explicitly requested.
 ```sh
 cargo run --locked -- --version
 cargo run --locked -- scan tests/fixtures/representative.ts
+printf 'a + b * 2' | cargo run --locked -- parse-expression --stdin
 printf 'const answer = 42;\n' | cargo run --locked -- scan --stdin
 printf '{"name":"example.ts","source":"const x = 1;"}\n' | cargo run --locked -- scan --jsonl
 ```
@@ -51,6 +53,14 @@ one EOF. Exit status is **0** for no lexical diagnostics, **1** for lexical
 diagnostics, and **2** for an invocation, input, or protocol error. Success is
 not a statement that the source is a valid TypeScript program.
 
+`parse-expression` accepts the same file, stdin, and JSONL input modes. It emits
+an arena of typed expression nodes with index references and source spans.
+Supported forms include binary/assignment/conditional operators, unary/update
+expressions, member access, calls/spreads, arrays/holes, optional chains and
+nested templates. Unsupported forms produce diagnostics, never a success claim.
+Parsing is bounded to 128 recursive expression levels; flat trees remain
+iterative and have flat ownership/drop. This is not a compilation operation.
+
 The binary accepts UTF-8 files. Invalid UTF-8 and unpaired JSON surrogate escapes
 are rejected rather than silently replaced. Diagnostic identifiers are native
 names, not a claim of TSxxxx diagnostic parity.
@@ -61,6 +71,7 @@ names, not a claim of TSxxxx diagnostic parity.
 cargo test --locked
 npm test
 npm run check:generated
+npm run test:parser
 # Add whole .ts/.tsx/.js files or directories to the raw-scanner corpus:
 npm test -- --corpus path/to/project
 ```
@@ -73,7 +84,13 @@ scanner API divergences have explicit separate assertions; no cases are silently
 normalized or accepted as expected failures. Rust tests include 10,000 deterministic
 malformed Unicode inputs, source mappings, and CLI error handling.
 
-This is lexical coverage, **not TypeScript compiler conformance**. See
+The expression suite compares **1,532 expression trees / 23,383 visited nodes**
+with TypeScript 7.0.2's native parser API, including grouping, associativity,
+operators, template parts, raw spellings and UTF-16 spans. Rust regression tests
+also cover 4,000 malformed expressions, nesting limits and a 20,000-term flat
+expression. All **28 Rust integration tests** are required by scripts/check.sh.
+
+This is front-end subset coverage, **not TypeScript compiler conformance**. See
 [compatibility and limits](docs/compatibility.md), the
 [architecture and milestone gates](docs/architecture.md), and
 [benchmark methodology](docs/performance.md).

@@ -83,3 +83,34 @@ fn documented_file_and_version_commands_work() {
             .contains(utsc::TYPESCRIPT_VERSION)
     );
 }
+
+#[test]
+fn expression_cli_returns_typed_nodes_and_rejects_unsupported_syntax() {
+    let result = invoke(&["parse-expression", "--stdin"], "变量 + 2 * 3".as_bytes());
+    assert!(result.status.success());
+    let response: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    let root = response["root"].as_u64().unwrap() as usize;
+    assert_eq!(response["nodes"][root]["kind"], "Binary");
+    assert_eq!(response["nodes"][root]["operator"]["text"], "+");
+    assert_eq!(response["nodes"][root]["span"]["end"], 10);
+    let result = invoke(&["parse-expression", "--stdin"], b"value as number");
+    assert_eq!(result.status.code(), Some(1));
+    let response: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(response["diagnostics"][0]["code"], "unsupported_syntax");
+}
+#[test]
+fn expression_jsonl_continues_after_an_error() {
+    let result = invoke(
+        &["parse-expression", "--jsonl"],
+        b"{\"name\":\"bad\",\"source\":\"(x\"}\n{\"name\":\"ok\",\"source\":\"a >> b\"}\n",
+    );
+    assert_eq!(result.status.code(), Some(1));
+    let output = String::from_utf8(result.stdout).unwrap();
+    let records: Vec<serde_json::Value> = output
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(records.len(), 2);
+    assert_eq!(records[1]["diagnostics"], serde_json::json!([]));
+    assert_eq!(records[1]["lexical_diagnostics"], serde_json::json!([]));
+}

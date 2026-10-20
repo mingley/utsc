@@ -4,18 +4,20 @@ use std::io::{self, BufRead, BufWriter, Read, Write};
 use std::process::ExitCode;
 
 use serde::{Deserialize, Serialize};
-use utsc::{Diagnostic, Scanner, TYPESCRIPT_VERSION, Token};
+use utsc::{Diagnostic, Scanner, TYPESCRIPT_VERSION, Token, parse_expression};
 
 const HELP: &str = "utsc — native Rust TypeScript compiler infrastructure\n\
 Usage: utsc scan <file>...\n\
        utsc scan --stdin\n\
        utsc scan --jsonl\n\
+       utsc parse-expression <file>... | --stdin | --jsonl\n\
        utsc --version\n\n\
 scan emits one JSON record per source, including trivia and EOF.\n\
 --jsonl accepts {\"name\":\"example.ts\",\"source\":\"let x = 1;\"} per line.\n\
 Offsets are zero-based UTF-16 code units plus UTF-8 byte offsets.\n\
-Exit codes: 0 scanned, 1 lexical diagnostics, 2 invocation/I/O/protocol error.\n\
-This milestone does not parse, type-check, or emit JavaScript.\n";
+Exit codes: 0 front-end operation succeeded, 1 diagnostics, 2 invocation/I/O/protocol error.\n\
+parse-expression returns a typed AST for supported expressions.\n\
+This milestone does not parse source files, type-check, or emit JavaScript.\n";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,6 +46,39 @@ fn scan(name: &str, source: &str, output: &mut impl Write) -> io::Result<bool> {
     Ok(!response.diagnostics.is_empty())
 }
 
+fn parse(name: &str, source: &str, output: &mut impl Write) -> io::Result<bool> {
+    let result = parse_expression(source);
+    let failed = !result.is_valid();
+    #[derive(Serialize)]
+    struct ParseResponse<'a, 'source> {
+        name: &'a str,
+        #[serde(flatten)]
+        result: &'a utsc::ast::ParsedExpression<'source>,
+    }
+    serde_json::to_writer(
+        &mut *output,
+        &ParseResponse {
+            name,
+            result: &result,
+        },
+    )?;
+    writeln!(output)?;
+    Ok(failed)
+}
+
+fn process(
+    parse_mode: bool,
+    name: &str,
+    source: &str,
+    output: &mut impl Write,
+) -> io::Result<bool> {
+    if parse_mode {
+        parse(name, source, output)
+    } else {
+        scan(name, source, output)
+    }
+}
+
 fn run() -> Result<u8, Box<dyn std::error::Error>> {
     let mut args = env::args_os().skip(1);
     let Some(command) = args.next() else {
@@ -65,29 +100,30 @@ fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         writeln!(
             output,
-            "utsc {} (TypeScript target {TYPESCRIPT_VERSION}; scanner milestone)",
+            "utsc {} (TypeScript target {TYPESCRIPT_VERSION}; front-end milestone; compilation unsupported)",
             env!("CARGO_PKG_VERSION")
         )?;
         output.flush()?;
         return Ok(0);
     }
-    if command != "scan" {
+    if command != "scan" && command != "parse-expression" {
         return Err("unknown command; use --help".into());
     }
+    let parse_mode = command == "parse-expression";
     let paths: Vec<_> = args.collect();
     if paths.is_empty() {
-        return Err("scan requires files, --stdin, or --jsonl".into());
+        return Err("command requires files, --stdin, or --jsonl".into());
     }
     let mut has_errors = false;
     if paths.len() == 1 && paths[0] == "--stdin" {
         let mut source = String::new();
         io::stdin().read_to_string(&mut source)?;
-        has_errors |= scan("<stdin>", &source, &mut output)?;
+        has_errors |= process(parse_mode, "<stdin>", &source, &mut output)?;
     } else if paths.len() == 1 && paths[0] == "--jsonl" {
         for (index, line) in io::stdin().lock().lines().enumerate() {
             let request: Request = serde_json::from_str(&line?)
                 .map_err(|e| format!("JSONL line {}: {e}", index + 1))?;
-            has_errors |= scan(&request.name, &request.source, &mut output)?;
+            has_errors |= process(parse_mode, &request.name, &request.source, &mut output)?;
         }
     } else {
         for path in paths {
@@ -99,7 +135,7 @@ fn run() -> Result<u8, Box<dyn std::error::Error>> {
             }
             let source = fs::read_to_string(&path)
                 .map_err(|e| format!("{}: {e}", path.to_string_lossy()))?;
-            has_errors |= scan(&path.to_string_lossy(), &source, &mut output)?;
+            has_errors |= process(parse_mode, &path.to_string_lossy(), &source, &mut output)?;
         }
     }
     output.flush()?;

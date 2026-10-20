@@ -28,4 +28,5 @@ jobs:
       - run: npm run test:bench
       - run: npm run check:generated
       - run: npm test
+      - run: npm run test:parser
       - run: cargo build --locked --release

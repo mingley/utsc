@@ -50,17 +50,40 @@ These assertions describe the exported unstable JavaScript scanner, not a claim
 about diagnostics from TypeScript's native compiler. Native compiler behavior
 must be checked independently as later compiler phases are implemented.
 
+## Expression parser milestone
+
+`parse-expression` builds a flat typed AST with borrowed token spellings. It
+requests greater-than operator and template continuation rescans from the
+scanner at grammar boundaries. Calls, properties, elements, optional chains,
+array holes/spreads, unary/update, binary/assignment/conditional expressions,
+parentheses and nested template substitutions are implemented.
+
+The native TypeScript 7.0.2 API is used to compare 1,532 expression trees and
+23,383 visited nodes exactly on structure, operators, raw text and UTF-16 spans.
+This uses the native upstream parser, not the JavaScript scanner API. Separate
+Rust tests cover precedence and associativity, invalid targets, exponentiation,
+nullish/logical mixing, comment line breaks, 4,000 malformed Unicode expressions,
+a nesting bound of 128, and flat ownership of a 20,000-term tree.
+
+Parser diagnostics have native identifiers. Error messages/codes/recovery are
+not yet upstream-compatible. Unsupported expression forms and leftover tokens
+are rejected explicitly. Contextual keyword identifiers, object literals,
+regular expressions, functions/arrows, type assertions, await/yield, JSX and
+whole statements/source files are not implemented by this parser. Grammar and
+semantic validity across all TypeScript contexts are not claimed.
+
 ## Not yet supported
 
-- Parser-led rescanning for regex literals, greater-than operators, or template
-  tails; JSX and JSDoc lexical modes. The standard scanner returns individual `>`
-  tokens and `/` punctuation by design. It stops a template head after `${`;
-  without a parser the final backtick can be interpreted as a new template.
+- Parser-led rescanning for regex literals; JSX and JSDoc lexical modes. The
+  raw scanner returns individual `>` tokens and `/` punctuation by design. It stops a template head after `${`;
+  the expression parser requests continuations while raw scanning still leaves
+  that decision to the caller.
 - Cooked string/numeric values, exact token flags, complete lexical validation,
   strict/target-dependent legacy literal rules, or TSxxxx diagnostic parity.
 - Lone UTF-16 surrogates and non-UTF-8 source encodings.
-- Parsing, binding, checking, standard libraries, module resolution, tsconfig,
-  transforms/emit, declaration/map output, project references, incremental builds,
+- Whole-source-file/type grammar, binding, checking, standard libraries, module
+  resolution, tsconfig, transforms/emit, declaration/map output, project references,
+  incremental builds,
   watch mode, language server, or the upstream compiler conformance suite.
 
 No percentage of full TypeScript compliance is implied. A successful scan only

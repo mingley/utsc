@@ -2,7 +2,7 @@
 
 utsc targets native compilation in Rust. Node and the npm TypeScript package are
 only development tools for data generation and differential tests. The shipped
-scanner binary does not launch another compiler or require Node.
+front-end binary does not launch another compiler or require Node.
 
 ## Current ownership model
 
@@ -21,6 +21,21 @@ No shared compiler cache, reference-counted AST graph, or unsafe code is needed
 for this milestone. Keep modules small; add crates when ownership and dependency
 boundaries are demonstrated rather than preallocating a large empty workspace.
 
+## Expression AST and parser
+
+Expression nodes live in a flat Vec with typed ExprId references. Token spellings
+borrow immutable source. The arena avoids recursive AST ownership/destruction,
+and the JSON output is also flat. A bounded Pratt parser implements precedence,
+associativity and member/call chaining, preserving byte and UTF-16 spans.
+Parser-directed rescans combine greater-than operators and template tails only
+at the relevant grammar boundary. Stale/foreign/wrong-kind rescan requests return
+errors without changing scanner state. The raw scanner interface remains intact.
+
+This parser is a partial front-end slice; it does not validate whole programs or
+implement type syntax, binding or checking. Unsupported syntax is rejected.
+Nesting over 128 produces an explicit diagnostic, not a success or stack overflow.
+Future production work must address limits against upstream and real workloads.
+
 ## Reference review
 
 Reviewed pingdotgg/ts-rust at 780dc512d64f40afebffa6a7028207649fb7ed1c,
@@ -32,8 +47,10 @@ port. The official pinned TypeScript release remains the compatibility authority
 
 ## Milestones and gates
 
-1. **Current:** source positions, context-free tokenization, native CLI, reproducible
-   generation, differential corpus, regression tests, and scanner benchmarks.
+1. **Implemented foundation:** source positions, raw/contextual scanning, a typed
+   expression subset, native CLI, reproducible generation, differential corpora,
+   regression tests, and scanner/competitor benchmarks. See GOAL.md for remaining
+   completion gates; these milestones do not complete the compiler.
 2. **Front end:** cooked literals, exact flags/diagnostics, parser-directed slash,
    greater-than and template rescans, JSX/JSDoc modes, typed AST, precedence and
    error recovery. Gate each feature on upstream syntax baselines, including invalid

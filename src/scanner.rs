@@ -50,6 +50,72 @@ impl<'a> Scanner<'a> {
         &self.diagnostics
     }
 
+    /// Combine a current `>` token only when the parser is in operator context.
+    /// Generic type parsers should keep the uncombined tokens instead.
+    pub fn rescan_greater(&mut self, token: Token<'a>) -> Result<Token<'a>, RescanError> {
+        self.validate_current(token, SyntaxKind::GreaterThanToken)?;
+        use SyntaxKind::*;
+        for (suffix, kind) in [
+            (">>=", GreaterThanGreaterThanGreaterThanEqualsToken),
+            (">>", GreaterThanGreaterThanGreaterThanToken),
+            (">=", GreaterThanGreaterThanEqualsToken),
+            (">", GreaterThanGreaterThanToken),
+            ("=", GreaterThanEqualsToken),
+        ] {
+            if self.rest().starts_with(suffix) {
+                self.ascii(suffix.len());
+                return Ok(self.extended_token(token, kind, false));
+            }
+        }
+        Ok(token)
+    }
+
+    /// Reinterpret a current `}` as the start of a template continuation.
+    /// This must be requested by a parser tracking nested substitution braces.
+    pub fn rescan_template(&mut self, token: Token<'a>) -> Result<Token<'a>, RescanError> {
+        self.validate_current(token, SyntaxKind::CloseBraceToken)?;
+        self.byte = token.byte_start;
+        self.utf16 = token.start;
+        let (kind, unterminated) = self.template(token.start, true);
+        Ok(self.extended_token(token, kind, unterminated))
+    }
+
+    fn validate_current(&self, token: Token<'a>, kind: SyntaxKind) -> Result<(), RescanError> {
+        if self.finished
+            || token.byte_end != self.byte
+            || token.end != self.utf16
+            || token.start.checked_add(1) != Some(token.end)
+        {
+            return Err(RescanError::StaleToken);
+        }
+        let Some(text) = self.source.get(token.byte_start..token.byte_end) else {
+            return Err(RescanError::StaleToken);
+        };
+        if text.as_ptr() != token.text.as_ptr() || text != token.text {
+            return Err(RescanError::StaleToken);
+        }
+        let expected = if kind == SyntaxKind::GreaterThanToken {
+            ">"
+        } else {
+            "}"
+        };
+        if token.kind != kind || text != expected {
+            return Err(RescanError::UnexpectedToken);
+        }
+        Ok(())
+    }
+
+    fn extended_token(&self, token: Token<'a>, kind: SyntaxKind, unterminated: bool) -> Token<'a> {
+        Token {
+            kind,
+            end: self.utf16,
+            byte_end: self.byte,
+            text: &self.source[token.byte_start..self.byte],
+            unterminated,
+            ..token
+        }
+    }
+
     fn peek(&self) -> Option<u8> {
         self.source.as_bytes().get(self.byte).copied()
     }
@@ -132,16 +198,30 @@ impl<'a> Scanner<'a> {
         true
     }
 
-    fn template(&mut self, start: usize) -> (SyntaxKind, bool) {
+    fn template(&mut self, start: usize, continuation: bool) -> (SyntaxKind, bool) {
         self.ascii(1);
         while self.peek().is_some() {
             if self.peek() == Some(b'`') {
                 self.ascii(1);
-                return (SyntaxKind::NoSubstitutionTemplateLiteral, false);
+                return (
+                    if continuation {
+                        SyntaxKind::TemplateTail
+                    } else {
+                        SyntaxKind::NoSubstitutionTemplateLiteral
+                    },
+                    false,
+                );
             }
             if self.rest().starts_with("${") {
                 self.ascii(2);
-                return (SyntaxKind::TemplateHead, false);
+                return (
+                    if continuation {
+                        SyntaxKind::TemplateMiddle
+                    } else {
+                        SyntaxKind::TemplateHead
+                    },
+                    false,
+                );
             }
             if self.peek() == Some(b'\\') {
                 // Invalid escapes in tagged templates are parser-sensitive.
@@ -156,7 +236,14 @@ impl<'a> Scanner<'a> {
             self.utf16 - start,
             "Unterminated template literal.",
         );
-        (SyntaxKind::NoSubstitutionTemplateLiteral, true)
+        (
+            if continuation {
+                SyntaxKind::TemplateTail
+            } else {
+                SyntaxKind::NoSubstitutionTemplateLiteral
+            },
+            true,
+        )
     }
 
     fn escape(&mut self, template: bool) {
@@ -613,7 +700,7 @@ impl<'a> Iterator for Scanner<'a> {
                 unterminated = self.quoted(self.peek().unwrap(), start);
                 SyntaxKind::StringLiteral
             } else if ch == '`' {
-                let result = self.template(start);
+                let result = self.template(start, false);
                 unterminated = result.1;
                 result.0
             } else if ch.is_ascii_digit()
@@ -684,3 +771,21 @@ fn whitespace(ch: char) -> bool {
             ..='\u{200b}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
     )
 }
+
+/// Rescans require the current token from this scanner, before advancing again.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RescanError {
+    StaleToken,
+    UnexpectedToken,
+}
+
+impl std::fmt::Display for RescanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::StaleToken => "rescan requires the current token from this scanner",
+            Self::UnexpectedToken => "token kind cannot be rescanned in this context",
+        })
+    }
+}
+
+impl std::error::Error for RescanError {}

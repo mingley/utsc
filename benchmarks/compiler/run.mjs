@@ -52,7 +52,7 @@ const unavailable = [];
 if (utscBinary) {
   const version = spawnSync(utscBinary, ['--version'], { encoding: 'utf8', timeout: 10_000 });
   assert.equal(version.status, 0, 'Cannot read candidate utsc version');
-  if (version.stdout.includes('scanner milestone')) {
+  if (version.stdout.includes('scanner milestone') || version.stdout.includes('compilation unsupported')) {
     unavailable.push({ id:'utsc', status:'not_implemented', reported_version:version.stdout.trim(), reason:'Scanner CLI cannot type-check or emit; no timing or ranking is produced.' });
   } else competitors.push({ id:'utsc', diagnostic_exit_code:1, package:'utsc', reported_version:version.stdout.trim(), command:[utscBinary] });
 } else unavailable.push({ id:'utsc', status:'not_implemented', reason:'No compiler entry point yet. Use --utsc-bin only when compilation is implemented; candidate must pass the same gates.' });

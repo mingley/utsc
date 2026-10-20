@@ -7,3 +7,4 @@ cargo test --locked
 npm run test:bench
 npm run check:generated
 npm test
+npm run test:parser
