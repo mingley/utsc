@@ -1,8 +1,16 @@
 # Performance measurements
 
 The goal is extremely high compiler throughput without sacrificing compatibility.
-The current implementation only supports scanner microbenchmarks. It does not yet
-have a measured advantage over a complete TypeScript compiler.
+The current utsc implementation only supports scanner microbenchmarks. We also
+have a correctness-gated harness for competitor compiler baselines; utsc cannot
+participate yet. It has no measured advantage over a complete TypeScript compiler.
+
+The performance acceptance target is to beat both current `tsc` and `ts-rust` on
+fixed representative projects at matching diagnostics and emitted output, with
+wall/CPU time, memory, warm/cold behavior, platform versions, and variability
+reported. The current synthetic baseline does not meet that evidentiary bar.
+See [compiler baselines](../benchmarks/compiler/README.md) for methodology and
+explicit failure reporting.
 
 ## Reproduce
 
@@ -51,3 +59,41 @@ The reference run used Node 24.19.0 and TypeScript 7.0.2 on the same host:
 
 Checksums matched. The unequal cooked-value/flag work described above prevents
 using these numbers as an equal-work speedup claim.
+
+## Compiler baseline captured October 19, 2026
+
+Five samples, 256 generated modules plus an index (257 timed TypeScript files,
+329,486 UTF-8 source bytes), identical strict options and shared standard
+libraries, no incremental state, warm filesystem caches. Processes were run
+sequentially with rotating order, after correctness checks; no concurrent local
+validation was run during this captured measurement. The host is shared, so
+ranges remain material.
+
+| Compiler | Median check ms | Wall range ms | Median CPU ms | Largest check-process RSS MiB |
+| --- | ---: | --- | ---: | ---: |
+| tsc 7.0.2 | 214.4 | 204.7–409.2 | 871.9 | 97.3 |
+| tsc-js 6.0.3 | 1326.3 | 1161.9–2095.9 | 2500.5 | 192.0 |
+| ts-rust 0.7.0 | 64.0 | 58.9–422.3 | 184.4 | 68.1 |
+| utsc | Unimplemented | — | — | — |
+
+All three competitors passed exact diagnostics on the selected invalid probes,
+including an error in the final module of the complete graph. The separate CLI
+exit-status adapters (1 versus 2) are explicit. This small probe set does not
+establish compiler conformance.
+
+Only current tsc 7 passed byte-identical emit: the two other compilers had source
+map differences, so their emit timings are withheld. The benchmark command
+therefore exited **1**, retaining those failures. JS and declaration bytes
+matched on this corpus. Map byte differences alone do not prove invalid maps.
+
+The raw samples, distributions, hashes, versions, and failed emit gates are in
+[the captured report](../benchmarks/compiler/results/2026-10-19-linux-x64.json).
+This report was captured from the local working tree (`git_dirty: true`); its
+harness hash, lockfile hashes, and input fingerprint identify the exact inputs.
+These results neither rank utsc nor show that it beats either competitor.
+
+Use `npm ci --prefix benchmarks/compiler --ignore-scripts` then
+`npm run bench:compiler` to reproduce. See
+[compiler harness documentation](../benchmarks/compiler/README.md) for the
+methodology, gate failures, and measurement limits. A production performance
+claim still requires representative pinned real projects and full parity.

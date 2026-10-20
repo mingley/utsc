@@ -90,6 +90,20 @@ samples and a median/range. They exclude file loading and JSON output. The
 reference scanner also computes cooked token values that utsc does not yet
 compute; the results cannot establish equal-work speedups or compiler performance.
 
+Compiler baselines for current `tsc`, JavaScript `tsc`, and `ts-rust` use a
+separate optional toolchain:
+
+```sh
+npm ci --prefix benchmarks/compiler --ignore-scripts
+npm run bench:compiler
+```
+
+See [compiler benchmark methodology](benchmarks/compiler/README.md) and
+[captured results](docs/performance.md). `utsc` is explicitly unranked until it
+can compile the same programs. Diagnostic and emit failures stay visible; the
+current run exits 1 because source-map byte parity fails for two competitors.
+No utsc compiler speedup or production-readiness claim is supported.
+
 ## References and license
 
 [Microsoft TypeScript](https://github.com/microsoft/TypeScript) is the behavior

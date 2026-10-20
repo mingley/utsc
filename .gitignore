@@ -3,3 +3,5 @@
 *.profraw
 *.profdata
 .DS_Store
+
+/benchmarks/compiler/node_modules/

@@ -1,0 +1,11 @@
+{
+  "name": "utsc-compiler-benchmarks",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pinned optional competitor compilers for correctness-gated benchmarks",
+  "engines": { "node": ">=22" },
+  "devDependencies": {
+    "typescript-js": "npm:typescript@6.0.3",
+    "tsc-rs": "0.7.0"
+  }
+}

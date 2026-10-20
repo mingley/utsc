@@ -25,6 +25,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
+      - run: npm run test:bench
       - run: npm run check:generated
       - run: npm test
       - run: cargo build --locked --release
